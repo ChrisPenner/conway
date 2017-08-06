@@ -1,6 +1,5 @@
-{-# language GeneralizedNewtypeDeriving #-}
-{-# language DeriveFunctor #-}
 {-# language TypeFamilies #-}
+{-# language MultiParamTypeClasses #-}
 module Conway
   ( mkGrid
   , basicRule
@@ -14,72 +13,50 @@ module Conway
   , Rule
   ) where
 
-import qualified Data.Vector as V
 import Control.Arrow ((***))
-import Data.Functor.Compose (Compose(..))
-import Data.Distributive (Distributive(..))
-import Data.Functor.Rep (Representable(..), distributeRep)
-import Control.Comonad (Comonad(..))
+import Control.Comonad.Store
 import Control.Monad (guard)
+
+type Rule = Grid Bool -> Bool
+type Coord = (Int, Int)
+type Grid a = Store Coord a
 
 gridSize :: Int
 gridSize = 20
 
-type Rule = Grid Bool -> Bool
-type Coord = (Int, Int)
+wrap :: Int -> Int
+wrap = (`mod` gridSize)
 
-newtype BoundedV a = BoundedV (V.Vector a)
-  deriving (Show, Eq, Functor, Foldable)
+neighbourCoords :: [(Int, Int)]
+neighbourCoords = [(x, y) | x <- [-1, 0, 1], y <- [-1, 0, 1], (x, y) /= (0, 0)]
 
-instance Distributive BoundedV where
-  distribute = distributeRep
-
-instance Representable BoundedV where
-  type Rep BoundedV = Int
-  index (BoundedV v) i = v V.! mod i gridSize
-  tabulate = BoundedV . V.generate gridSize
-
-instance Distributive Grid where
-  distribute = distributeRep
-
-instance Representable Grid where
-  type Rep Grid = Coord
-  index (Grid _ g) = index g
-  tabulate desc = Grid (0, 0) (tabulate desc)
-
-data Grid a = Grid (Rep Grid) (Compose BoundedV BoundedV a)
-  deriving (Functor)
-
-instance Comonad Grid where
-  extract (Grid i g) = index g i
-  extend f (Grid i g) = tabulate (\j -> f (Grid j g))
+boardCoords :: [[Coord]]
+boardCoords = [[(x, y) | y <- [0 .. gridSize - 1]] | x <- [0 .. gridSize - 1]]
 
 basicRule :: Rule
-basicRule (Grid i@(sx, sy) g) =
+basicRule g =
   (alive && numNeighbours `elem` [2, 3]) || (not alive && numNeighbours == 3)
   where
-    alive = index g i
+    alive = extract g
     numNeighbours = length (filter id neighbours)
     val True = 1
     val False = 0
-    neighbours = do
-      x <- [-1, 0, 1]
-      y <- [-1, 0, 1]
-      let coord = (x, y)
-      guard $ coord /= (0, 0)
-      return (index g (x + sx, y + sy))
+    addCoords (x, y) = (+x) *** (+y)
+    neighbours = experiment (\s -> fmap ((wrap *** wrap) . addCoords s) neighbourCoords) g
 
 step :: Rule -> Grid Bool -> Grid Bool
 step = extend
 
 render :: Grid Bool -> String
-render (Grid _ (Compose g)) = foldMap ((++ "\n") . foldMap toS) g
+render s = foldMap ((++ "\n") . foldMap toS) (fmap (`peek` s) <$> boardCoords)
   where
     toS True = "#"
     toS False = "."
 
 mkGrid :: [Coord] -> Grid Bool
-mkGrid = tabulate . flip elem
+mkGrid xs = store lookup (0, 0)
+  where
+    lookup crd = crd `elem` xs
 
 at :: [Coord] -> Coord -> [Coord]
 at xs (x, y) = fmap ((+x) *** (+y)) xs
