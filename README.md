@@ -1,8 +1,10 @@
 # Conway
 
-A quick cli conway's game of life implementation using Representable and Comonad.
+A quick cli conway's game of life implementation in Haskell using Representable and Comonad.
 
 The board 'wraps around' Pac-man style.
+
+[![asciicast](https://asciinema.org/a/132401.png)](https://asciinema.org/a/132401)
 
 # Running
 
