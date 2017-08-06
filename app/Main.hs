@@ -3,12 +3,21 @@ module Main where
 import Conway
 import Control.Concurrent
 
-main :: IO ()
-main = loop basicGrid
+tickTime :: Int
+tickTime = 200000
 
-loop :: Grid Bool -> IO ()
-loop g = do
-  putStr "\ESC[2J"
+start :: Grid Bool
+start = mkGrid $
+     glider `at` (0, 0)
+  ++ blinker `at` (5, 10)
+  ++ beacon `at` (15, 5)
+
+main :: IO ()
+main = loop (step basicRule) start
+
+loop :: (Grid Bool -> Grid Bool) -> Grid Bool -> IO ()
+loop stepper g = do
+  putStr "\ESC[2J" -- Clear terminal screen
   putStrLn (render g)
-  threadDelay 200000
-  loop (next g)
+  threadDelay tickTime
+  loop stepper (stepper g)
