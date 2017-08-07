@@ -13,61 +13,51 @@ module Conway
   , Rule
   ) where
 
-import Data.Functor.Compose
+import Data.Functor.Compose (Compose(..))
 import qualified Data.Vector as V
-import Data.Distributive
-import Data.Functor.Rep
+import Data.Bool (bool)
+import Data.Distributive (Distributive(..))
+import Data.Functor.Rep (Representable(..), distributeRep)
+import Data.Functor.Identity (Identity(..))
 import Control.Arrow ((***))
-import Control.Comonad.Representable.Store
-import Control.Comonad
-import Control.Monad (guard)
+import Control.Comonad.Representable.Store (Store(..), StoreT(..), store, experiment)
+import Control.Comonad (Comonad(..))
 
-type Rule = Grid Bool -> Bool
 type Coord = (Int, Int)
 type Grid a = Store (Compose VBounded VBounded) a
+type Rule = Grid Bool -> Bool
 
 newtype VBounded a = VBounded (V.Vector a)
-  deriving (Eq, Show, Functor)
+  deriving (Eq, Show, Functor, Foldable)
 
 instance Distributive VBounded where
   distribute = distributeRep
 
 instance Representable VBounded where
   type Rep VBounded = Int
-  index (VBounded v) i = v V.! i
+  index (VBounded v) i = v V.! (i `mod` gridSize)
   tabulate desc = VBounded $ V.generate gridSize desc
 
 gridSize :: Int
 gridSize = 20
 
-wrap :: Int -> Int
-wrap = (`mod` gridSize)
-
 neighbourCoords :: [(Int, Int)]
 neighbourCoords = [(x, y) | x <- [-1, 0, 1], y <- [-1, 0, 1], (x, y) /= (0, 0)]
 
-boardCoords :: [[Coord]]
-boardCoords = [[(x, y) | y <- [0 .. gridSize - 1]] | x <- [0 .. gridSize - 1]]
-
 basicRule :: Rule
 basicRule g =
-  (alive && numNeighbours `elem` [2, 3]) || (not alive && numNeighbours == 3)
+  (alive && numNeighboursAlive `elem` [2, 3]) || (not alive && numNeighboursAlive == 3)
   where
     alive = extract g
-    numNeighbours = length (filter id neighbours)
-    val True = 1
-    val False = 0
-    addCoords (x, y) = (+x) *** (+y)
-    neighbours = experiment (\s -> fmap ((wrap *** wrap) . addCoords s) neighbourCoords) g
+    addCoords (x, y) (x', y') = (x + x', y + y')
+    neighbours = experiment (\s -> addCoords s <$> neighbourCoords) g
+    numNeighboursAlive = length (filter id neighbours)
 
 step :: Rule -> Grid Bool -> Grid Bool
 step = extend
 
 render :: Grid Bool -> String
-render s = foldMap ((++ "\n") . foldMap toS) (fmap (`peek` s) <$> boardCoords)
-  where
-    toS True = "#"
-    toS False = "."
+render (StoreT (Identity (Compose g)) _) = foldMap ((++ "\n") . foldMap (bool "." "#")) g
 
 mkGrid :: [Coord] -> Grid Bool
 mkGrid xs = store lookup (0, 0)
