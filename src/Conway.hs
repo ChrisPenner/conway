@@ -1,5 +1,5 @@
+{-# language GeneralizedNewtypeDeriving #-}
 {-# language TypeFamilies #-}
-{-# language MultiParamTypeClasses #-}
 module Conway
   ( mkGrid
   , basicRule
@@ -13,13 +13,29 @@ module Conway
   , Rule
   ) where
 
+import Data.Functor.Compose
+import qualified Data.Vector as V
+import Data.Distributive
+import Data.Functor.Rep
 import Control.Arrow ((***))
-import Control.Comonad.Store
+import Control.Comonad.Representable.Store
+import Control.Comonad
 import Control.Monad (guard)
 
 type Rule = Grid Bool -> Bool
 type Coord = (Int, Int)
-type Grid a = Store Coord a
+type Grid a = Store (Compose VBounded VBounded) a
+
+newtype VBounded a = VBounded (V.Vector a)
+  deriving (Eq, Show, Functor)
+
+instance Distributive VBounded where
+  distribute = distributeRep
+
+instance Representable VBounded where
+  type Rep VBounded = Int
+  index (VBounded v) i = v V.! i
+  tabulate desc = VBounded $ V.generate gridSize desc
 
 gridSize :: Int
 gridSize = 20
