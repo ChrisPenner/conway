@@ -24,13 +24,13 @@ blinker = [(0, 0), (1, 0), (2, 0)]
 beacon = [(0, 0), (1, 0), (0, 1), (3, 2), (2, 3), (3, 3)]
 ```
 
-* Define your own 'life' rules as a function from `Grid Bool -> Bool`; the grid passed to the function is focused on
+* Define your own 'life' rules as a function from `Grid -> Bool`; the grid passed to the function is focused on
     the cell you should compute 'life' for.
 * Customize your tick time in [`Main.hs`](./app/Main.hs)
 * Build a starting grid using provided combinators, e.g.
 
 ```haskell
-grid :: Grid Bool
+grid :: Grid
 grid = mkGrid $
      glider `at` (0, 0)
   ++ blinker `at` (5, 10)
